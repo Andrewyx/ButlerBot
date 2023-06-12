@@ -6,6 +6,8 @@ import math
 import serial
 import json
 
+data = {"id": 0, "distance": 0, "angle": 0, "isoffcourse": False}
+serialCounter = 0
 
 ARUCO_DICT = {
     "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
@@ -31,13 +33,12 @@ ARUCO_DICT = {
     "DICT_APRILTAG_36h11": cv2.aruco.DICT_APRILTAG_36h11,
 }
 
-ser = serial.Serial("/dev/ttyS0", 9600)
-data = {"id": 0, "distance": 0, "angle": 0}
 screenWidth = 640
 screenHeight = 480
 screenCenter = (screenWidth / 2, screenHeight / 2)
 colour = (0, 0, 255)
 thickness = 8
+ser = serial.Serial("/dev/ttyS0", 9600)
 
 def aruco_display(corners, ids, rejected, image):
     if len(corners) > 0:
@@ -87,10 +88,39 @@ def vector_from_center(screenCenter, fidCenter):
     fidVec = [distanceInPx, angleInRad]
     global data
     data["distance"] = float(distanceInPx)
-    data["angle"] = float(angleInRad)    
-    print(fidVec)
+    data["angle"] = float(angleInRad) 
+    data["isoffcourse"] = True;   
     return fidVec
 
+def sendThroughSerial(ids):
+    global data, serialCounter
+    idlist = ids.tolist()
+    data["id"] = idlist[0][0]
+    Jdata = json.dumps(data)
+    print(Jdata)
+            
+    if serialCounter >= 10:
+        ser.write(Jdata.encode('ascii'))
+        ser.write(b"\n")
+        ser.flush()
+        serialCounter = 0
+    else:
+        serialCounter+=1    
+
+def boudningBox():
+
+    img = np.zeros((512,512,3), np.uint8)
+    cv2.rectangle(img,(384,0),(510,128),(0,255,0),3)
+
+    #TODO
+    #box to stop navigating and start turning to front
+    #make sure to draw its range on screen!
+    #Have this call another function to change orientation of the bot
+    pass
+
+def correctOrientation():
+    #rotate bot until the Euler orientation of x is 90 degrees -> the bot is paralell to the x-axis
+    pass
 
 def pose_estimation(
     frame, aruco_dict_type, matrix_coefficients, distortion_coefficients
@@ -130,28 +160,23 @@ def pose_estimation(
             y_centerPixel = y_sum * 0.25
             centerPixel = (int(x_centerPixel), int(y_centerPixel))
             startpoint = (int(screenWidth/2), int(screenHeight/2))
+            
             vector_from_center(centerPixel, startpoint)
-            global data
-            idlist = ids.tolist()
-            data["id"] = idlist[0][0]
-            Jdata = json.dumps(data)
-            print(Jdata)
-
-            ser.write(Jdata.encode('ascii'))
-            ser.write(b"\n")
-            ser.flush()
+            sendThroughSerial(ids)
 
             #print(f"ArucoID:{ids}")
             cv2.line(frame, startpoint, centerPixel, (255, 0, 255), thickness)
 
             cv2.aruco.drawDetectedMarkers(frame, corners)
-            
+
+            print(f"RVector Value {rvec}")
             cv2.aruco.drawAxis(
                 frame, matrix_coefficients, distortion_coefficients, rvec, tvec, 0.01
             )
+    else:
+        data["isoffcourse"] = False    
 
     return frame
-
 
 aruco_type = "DICT_ARUCO_ORIGINAL"
 
@@ -167,11 +192,13 @@ intrinsic_camera = np.array(
 distortion = np.array((-0.43948, 0.18514, 0, 0))
 
 
-
 cap = cv2.VideoCapture(0)
 
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, screenWidth)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, screenHeight)
+
+
+
 
 while cap.isOpened():
     ret, img = cap.read()

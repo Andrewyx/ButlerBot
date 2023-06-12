@@ -6,6 +6,7 @@
 #include <json/value.h>
 #include <json/json.h>
 #include <typeinfo>
+#include "mymotor.h"
 
 using namespace std;
 char tempstr[256];
@@ -65,13 +66,16 @@ void is_Ahead(float angle){
   float angleDEG = angle*RAD_TO_DEG;
   if(angleDEG >= 90 - deviationVal && angleDEG <= 90 + deviationVal){
     //drive forward
+    goForward();
     Serial.println("goin ahead");
   }
   else if(angleDEG > 90 && angleDEG < 90 + detectionArc/2){
     //turn left
+    turnLeft();
   }
   else if(angleDEG < 90 && angleDEG > 90 - detectionArc/2){
     //turn right
+    turnRight();
   }
 
 
