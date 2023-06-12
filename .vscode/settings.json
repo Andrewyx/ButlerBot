@@ -1,0 +1,7 @@
+{
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "python.formatting.provider": "none",
+    "cmake.sourceDirectory": "C:/Users/andre/OneDrive/Documents/GitHub/ButlerBot/ButlerESP32andRPi/.pio/libdeps/firebeetle32/Adafruit BusIO"
+}
