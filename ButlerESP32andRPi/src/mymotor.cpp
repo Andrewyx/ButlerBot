@@ -45,7 +45,7 @@ void initServoLib(){
 }
 
 void runButlerMotorsWithFids(float id, float distance, float angle){
-
+  
 }
 
 void goForward()
@@ -67,6 +67,20 @@ void halt()
 {
   leftServo.write(90);
   rightServo.write(90); 
+}
+
+void turnRightSlowly()
+{
+  leftServo.write(100);
+  rightServo.write(80);
+  Serial.println("turnin right");
+}
+
+void turnLeftSlowly()
+{
+  leftServo.write(80);
+  rightServo.write(100);
+  Serial.println("turnin left");
 }
 
 void runButlerMotor(){

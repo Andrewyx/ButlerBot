@@ -6,8 +6,9 @@ import math
 import serial
 import json
 
-data = {"id": 0, "distance": 0, "angle": 0, "isoffcourse": False}
+data = {"id": 0, "distance": 0, "angle": 0, "isoffcourse": False, "RVec": 0, "Reorientate": False}
 serialCounter = 0
+isBoundedbyBox = False
 
 ARUCO_DICT = {
     "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
@@ -38,6 +39,7 @@ screenHeight = 480
 screenCenter = (screenWidth / 2, screenHeight / 2)
 colour = (0, 0, 255)
 thickness = 8
+beenSent = False
 ser = serial.Serial("/dev/ttyS0", 9600)
 
 def aruco_display(corners, ids, rejected, image):
@@ -92,35 +94,72 @@ def vector_from_center(screenCenter, fidCenter):
     data["isoffcourse"] = True;   
     return fidVec
 
-def sendThroughSerial(ids):
-    global data, serialCounter
-    idlist = ids.tolist()
-    data["id"] = idlist[0][0]
-    Jdata = json.dumps(data)
-    print(Jdata)
-            
-    if serialCounter >= 10:
+def sendThroughSerial(ids, fidDetected):
+    global data, serialCounter, beenSent
+    if fidDetected is False and beenSent is False:
+        data["id"] = 0
+        beenSent = True
+        Jdata = json.dumps(data)
         ser.write(Jdata.encode('ascii'))
         ser.write(b"\n")
-        ser.flush()
-        serialCounter = 0
-    else:
-        serialCounter+=1    
+        ser.flush()        
+        return print(Jdata) 
+    elif fidDetected is True:
+        idlist = ids.tolist()
+        data["id"] = idlist[0][0]
+        Jdata = json.dumps(data)
+        beenSent = False
+        #print(Jdata) 
+        if serialCounter >= 10:
+            ser.write(Jdata.encode('ascii'))
+            ser.write(b"\n")
+            ser.flush()
+            serialCounter = 0
+        else:
+            serialCounter+=1
+               
 
-def boudningBox():
+def isInsideBox(fidCenterPx, lowerx, upperx, lowery, uppery):
+    if fidCenterPx[0] >= lowerx and fidCenterPx[0] <= upperx:
+        if fidCenterPx[1] >= lowery and fidCenterPx[1] <= uppery:
+            global isBoundedbyBox 
+            isBoundedbyBox = True
+            return True
+    return False
 
-    img = np.zeros((512,512,3), np.uint8)
-    cv2.rectangle(img,(384,0),(510,128),(0,255,0),3)
+def boundingBox(frame, boxlength, boxheight, colour, lineThickness, fidCenterPx, rvec, i):
+    global screenWidth, screenHeight, data
+    xLeftCornerPx = int((screenWidth - boxlength)/2)
+    yLeftCornerPx = int((screenHeight - boxheight)/2)
+    leftRectCorner = (xLeftCornerPx, yLeftCornerPx)
+    rightRectCorner = (screenWidth - xLeftCornerPx, screenHeight - yLeftCornerPx)
+    data["Reorientate"] = False
+    if fidCenterPx is None:
+        pass
+    elif isInsideBox(fidCenterPx, leftRectCorner[0], rightRectCorner[0], leftRectCorner[1], rightRectCorner[1]):
+        colour = (0,0,255)
+        correctOrientationData(rvec, i)
+        
+        
+    frame_with_rect = cv2.rectangle(frame, leftRectCorner, rightRectCorner ,colour,lineThickness)
 
-    #TODO
-    #box to stop navigating and start turning to front
-    #make sure to draw its range on screen!
-    #Have this call another function to change orientation of the bot
-    pass
+    return frame_with_rect
 
-def correctOrientation():
+def correctOrientationData(rvec, i):
+    global data
+    rotM = np.zeros(shape=(3,3))
+    cv2.Rodrigues(rvec[i-1], rotM, jacobian = 0)
+    ypr = cv2.RQDecomp3x3(rotM)
+
+    data["RVec"] = ypr[0][2]
+    data["Reorientate"] =  True
+    Jdata = json.dumps(data)
+    ser.write(Jdata.encode('ascii'))
+    ser.write(b"\n")
+    ser.flush()       
+         
+    #we want roll, the third item
     #rotate bot until the Euler orientation of x is 90 degrees -> the bot is paralell to the x-axis
-    pass
 
 def pose_estimation(
     frame, aruco_dict_type, matrix_coefficients, distortion_coefficients
@@ -137,7 +176,6 @@ def pose_estimation(
         distCoeff=distortion_coefficients,
     )
     
-
     if len(corners) > 0:
         for i in range(0, len(ids)):
             rvec, tvec, markerPoints = cv2.aruco.estimatePoseSingleMarkers(
@@ -160,22 +198,25 @@ def pose_estimation(
             y_centerPixel = y_sum * 0.25
             centerPixel = (int(x_centerPixel), int(y_centerPixel))
             startpoint = (int(screenWidth/2), int(screenHeight/2))
-            
             vector_from_center(centerPixel, startpoint)
-            sendThroughSerial(ids)
+            sendThroughSerial(ids, True)
 
-            #print(f"ArucoID:{ids}")
             cv2.line(frame, startpoint, centerPixel, (255, 0, 255), thickness)
-
             cv2.aruco.drawDetectedMarkers(frame, corners)
-
-            print(f"RVector Value {rvec}")
+            
+            
             cv2.aruco.drawAxis(
                 frame, matrix_coefficients, distortion_coefficients, rvec, tvec, 0.01
+                
             )
+            frame = boundingBox(frame, 120, 100, (0,0,0), 3, centerPixel, rvec, i)
+        
+        
     else:
-        data["isoffcourse"] = False    
-
+        data["isoffcourse"] = False
+        frame = boundingBox(frame, 120, 100, (0,0,0), 3, None, None, None)
+        sendThroughSerial(ids, False)
+            
     return frame
 
 aruco_type = "DICT_ARUCO_ORIGINAL"
