@@ -8,6 +8,7 @@ import json
 
 data = {"id": 0, "distance": 0, "angle": 0, "isoffcourse": False, "RVec": 0, "Reorientate": False}
 serialCounter = 0
+serialCounterForBounding = 0
 isBoundedbyBox = False
 
 ARUCO_DICT = {
@@ -146,7 +147,7 @@ def boundingBox(frame, boxlength, boxheight, colour, lineThickness, fidCenterPx,
     return frame_with_rect
 
 def correctOrientationData(rvec, i):
-    global data
+    global data, serialCounterForBounding
     rotM = np.zeros(shape=(3,3))
     cv2.Rodrigues(rvec[i-1], rotM, jacobian = 0)
     ypr = cv2.RQDecomp3x3(rotM)
@@ -154,10 +155,12 @@ def correctOrientationData(rvec, i):
     data["RVec"] = ypr[0][2]
     data["Reorientate"] =  True
     Jdata = json.dumps(data)
-    ser.write(Jdata.encode('ascii'))
-    ser.write(b"\n")
-    ser.flush()       
-         
+    if serialCounterForBounding >= 5:
+        ser.write(Jdata.encode('ascii'))
+        ser.write(b"\n")
+        ser.flush()       
+    else:
+        serialCounterForBounding += 1            
     #we want roll, the third item
     #rotate bot until the Euler orientation of x is 90 degrees -> the bot is paralell to the x-axis
 
@@ -229,7 +232,9 @@ arucoParams = cv2.aruco.DetectorParameters_create()
 intrinsic_camera = np.array(
     ((933.15867, 0, 657.59), (0, 933.1586, 400.36993), (0, 0, 1))
 )
-# intrinsic_camera = np.load("cameraMatrix.pkl")
+# NOTICE The Picamera 1.3 used for this project still needs to callibrated for the above np array
+# In rush so I used preset values for another camera
+# Remember to callibrate camera correctly for the above and below arrays
 distortion = np.array((-0.43948, 0.18514, 0, 0))
 
 

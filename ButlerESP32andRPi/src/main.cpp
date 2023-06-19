@@ -10,6 +10,7 @@
 
 using namespace std;
 char tempstr[256];
+bool fixingOrientation = false;
 
 float deserializedFidData[6];
 /*
@@ -62,12 +63,6 @@ void parseData(char* data){
       Serial.println(deserializedFidData[5]);
     }
 } 
-/*TODO: 
-PGRM motor controls
-PGRM Deserialzaton funcs
-PGRM is_Ahead funcs
-PRGM orientation funcs
-*/
 
 void init_UART(){
   int BaudRate = 9600;
@@ -103,12 +98,21 @@ void fixOrientation(float RVecData, const float deviationInDeg){
   {
     turnRightSlowly();
   }
-  else if (RVecData < -deviationInDeg)
+  else if (RVecData < (deviationInDeg-180))
   {
+    /*
+    check this piece of code right here...I think this might be turning the wrong way
+    or, this could also be that the Euler angle returned is not negative but is instead some value between
+    0 and 180
+    */
     turnLeftSlowly();
   }
   else{
+    fixingOrientation = false;
     goForward();
+    /*
+    consider adding a halt function to allow the camera to redetect marker if it is lost during reorientation
+    */
   }
 }
 
@@ -120,10 +124,12 @@ void is_Ahead(float angle){
   int deviationVal = 8;
   int detectionArc = 120;
   float angleDEG = angle*RAD_TO_DEG;
-  if(angleDEG >= 90 - deviationVal && angleDEG <= 90 + deviationVal){
+  Serial.print("Angle: ");
+  Serial.println(angleDEG);
+  if(angleDEG >= (90 - deviationVal) && angleDEG <= (90 + deviationVal)){
     //drive forward
     goForward();
-    Serial.println("goin ahead");
+    Serial.println(" goin ahead");
   }
   else if(angleDEG > 90 && angleDEG < (90 + detectionArc/2)){
     //turn left
@@ -139,22 +145,23 @@ void is_Ahead(float angle){
 
 void setup(){
   init_UART();
+  initServoLib();
 }
 void loop(){
-  if (int(deserializedFidData[3]) == 0)
+  serialUARTCommunication();
+  if (int(deserializedFidData[5]) == 1 || fixingOrientation)
   {
-    goForward();
-  }
-  else if (int(deserializedFidData[5]) == 1)
-  {
+    fixingOrientation = true;
     fixOrientation(deserializedFidData[4], 10);
-  }
-  
-  else if (int(deserializedFidData[3]) == 0 && int(deserializedFidData[5]) == 0)
+    //in the box and needs to be fixed
+  } 
+  else if (int(deserializedFidData[3]) == 1 && int(deserializedFidData[5]) == 0)
   {
     is_Ahead(deserializedFidData[2]);
     //off course and not reorientating  
   }
-  
-  serialUARTCommunication();
+  else if (int(deserializedFidData[3]) == 0)
+  {
+    goForward();
+  }  
 }

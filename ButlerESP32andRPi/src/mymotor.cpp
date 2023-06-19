@@ -50,56 +50,46 @@ void runButlerMotorsWithFids(float id, float distance, float angle){
 
 void goForward()
 {
-  leftServo.write(70);
-  rightServo.write(70); 
+  leftServo.write(75);
+  rightServo.write(75); 
+  Serial.println("goin ahead");
 }
 void turnLeft()
 {
-  leftServo.write(65);
-  rightServo.write(70); 
+  leftServo.write(70);
+  rightServo.write(85); 
 }
 void turnRight()
 {
-  leftServo.write(70);
-  rightServo.write(65); 
+  leftServo.write(85);
+  rightServo.write(70); 
+  Serial.println("turnin right");
 }
 void halt()
 {
   leftServo.write(90);
   rightServo.write(90); 
+  Serial.println("turnin left");
 }
 
 void turnRightSlowly()
 {
-  leftServo.write(100);
-  rightServo.write(80);
-  Serial.println("turnin right");
+  leftServo.write(110);
+  rightServo.write(70);
+  Serial.println("turnin right slowly");
 }
 
 void turnLeftSlowly()
 {
-  leftServo.write(80);
-  rightServo.write(100);
-  Serial.println("turnin left");
+  leftServo.write(70);
+  rightServo.write(110);
+  Serial.println("turnin left slowly");
 }
 
 void runButlerMotor(){
   isForward = (int)(rawIntData[2] * sin(rawIntData[3]*PI/180));
   isTurn = (int)(rawIntData[2] * cos(rawIntData[3]*PI/180));
-  
-  /*
-  Serial.print("Cos: ");
-  Serial.print(cos(rawIntData[3]*PI/180));
-  Serial.print(" Speed: ");
-  Serial.print(rawIntData[2]);
-  Serial.print(" Angle: ");
-  Serial.print(rawIntData[3]);  
-  Serial.print(" ForwardVal: ");
-  Serial.print(isForward);
-  Serial.print(" TurnVal: ");
-  Serial.print(isTurn);
-  */
-    
+      
   if (rawIntData[2] == 0){
     leftServo.write(90);
     rightServo.write(90);
