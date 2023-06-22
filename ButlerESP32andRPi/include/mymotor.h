@@ -21,7 +21,5 @@ void goForward();
 void turnLeft();
 void turnRight();
 void halt();
-void turnRightSlowly();
-void turnLeftSlowly();
 
 #endif

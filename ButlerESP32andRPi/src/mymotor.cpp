@@ -2,6 +2,8 @@
 #include <ESP32Servo.h>
 #include <math.h>
 #include "mymotor.h"
+#include "mylinesensor.h"
+#include "myultrasonic.h"
 
 //These are the ESP32 pins for the Soccer Bot Motor
 //make sure to jump EN pins OR THIS WILL NOT WORK
@@ -44,80 +46,154 @@ void initServoLib(){
 
 }
 
-void runButlerMotorsWithFids(float id, float distance, float angle){
-  
+void runMotorWithLines(){
+    readLineSensor();
+
+    if(!lineCollData[0]){
+      leftServo.write(70);
+      rightServo.write(90);
+      delay(1000);
+    }
+    else if (!lineCollData[1]){
+      leftServo.write(90);
+      rightServo.write(70);
+      delay(1000);
+    }
+    else{
+      leftServo.write(70);
+      rightServo.write(70);
+    }
+}
+
+void runMotorWithUltrasonic(){
+    int toleranceVal = 40;
+    int frontTolerance = 150;
+    int peripheralDiff =  cleanedLD - cleanedRD;
+    runUltrasonic();
+    if (cleanedFD < frontTolerance && cleanedRD >= 1000 && cleanedLD >= 1000){
+      turnLeft();
+      delay(1000);
+    }
+    else if(cleanedFD < frontTolerance && peripheralDiff < -toleranceVal){
+      //turn left
+      leftServo.write(70 + (10 - constrain(peripheralDiff, 0, 10)));
+      rightServo.write(90 + (10 - constrain(peripheralDiff, 0, 10)));
+    }
+    else if (cleanedFD < 70 && peripheralDiff > toleranceVal){
+      //turn right
+      rightServo.write(70 + constrain(peripheralDiff, 0, 10));
+      leftServo.write(90 + constrain(peripheralDiff, 0, 10));
+    }
+    else if(peripheralDiff < -toleranceVal){
+
+      leftServo.write(70 + (5 - constrain(peripheralDiff, 0, 5)));
+      rightServo.write(70 - (5 - constrain(peripheralDiff, 0, 5)));
+    }
+    else if (peripheralDiff > toleranceVal){
+      rightServo.write(70 + constrain(peripheralDiff, 0, 5));
+      leftServo.write(70 - constrain(peripheralDiff, 0, 5));
+    }    
+    else{
+      leftServo.write(70);
+      rightServo.write(70);
+    }    
 }
 
 void goForward()
 {
-  leftServo.write(75);
-  rightServo.write(75); 
-  Serial.println("goin ahead");
+  leftServo.write(70);
+  rightServo.write(70); 
 }
 void turnLeft()
 {
-  leftServo.write(70);
-  rightServo.write(85); 
+  leftServo.write(65);
+  rightServo.write(70); 
 }
 void turnRight()
 {
-  leftServo.write(85);
-  rightServo.write(70); 
-  Serial.println("turnin right");
+  leftServo.write(70);
+  rightServo.write(65); 
 }
 void halt()
 {
   leftServo.write(90);
   rightServo.write(90); 
-  Serial.println("turnin left");
-}
-
-void turnRightSlowly()
-{
-  leftServo.write(110);
-  rightServo.write(70);
-  Serial.println("turnin right slowly");
-}
-
-void turnLeftSlowly()
-{
-  leftServo.write(70);
-  rightServo.write(110);
-  Serial.println("turnin left slowly");
 }
 
 void runButlerMotor(){
   isForward = (int)(rawIntData[2] * sin(rawIntData[3]*PI/180));
   isTurn = (int)(rawIntData[2] * cos(rawIntData[3]*PI/180));
-      
-  if (rawIntData[2] == 0){
+  
+  /*
+  Serial.print("Cos: ");
+  Serial.print(cos(rawIntData[3]*PI/180));
+  Serial.print(" Speed: ");
+  Serial.print(rawIntData[2]);
+  Serial.print(" Angle: ");
+  Serial.print(rawIntData[3]);  
+  Serial.print(" ForwardVal: ");
+  Serial.print(isForward);
+  Serial.print(" TurnVal: ");
+  Serial.print(isTurn);
+  */
+    
+  if(rawIntData[2] == 0){
     leftServo.write(90);
     rightServo.write(90);
+    isMoving = false;
   }
 
-  else {
-      if(isForward > 0){
-        leftMotor = isForward + isTurn;
-        rightMotor = isForward - isTurn;
-      }
-      else{
-        leftMotor = isForward - isTurn;
-        rightMotor = isForward + isTurn;
-      }
-
-      leftMotor = constrain(leftMotor, -100, 100);
-      rightMotor = constrain(rightMotor, -100, 100);
-      leftMotor = map(leftMotor, -100, 100, 60, 130);
-      rightMotor = map(rightMotor, -100, 100, 60, 130);
-      leftServo.write(leftMotor);
-      rightServo.write(rightMotor);
+  else{
+    isMoving = true;
   }
-  
+
+  if (isMoving){
+
+    if (rawIntData[3] <= 15 || rawIntData[3] >= 345){
+      //right turn
+      leftMotor = (abs(isForward) + abs(isTurn));
+      rightMotor = -1 * (abs(isForward) + abs(isTurn));              
+    }
+    else if (rawIntData[3] >= 165 && rawIntData[3] <= 195){
+      //left turn
+      leftMotor = -1 * (abs(isForward) + abs(isTurn));
+      rightMotor = (abs(isForward) + abs(isTurn));
+    }    
+    else if(isForward < 0 && isTurn > 0){
+      //back right turnish
+      leftMotor = -1 * (abs(isForward) + abs(isTurn));
+      rightMotor = -1 * abs(isForward); 
+    }
+    else if(isForward < 0 && isTurn < 0){
+      //back left turnish
+      leftMotor = -1 * abs(isForward);
+      rightMotor = -1 * (abs(isForward) + abs(isTurn));   
+    }
+    else if(isForward > 0 && isTurn > 0){
+      //for right turnish
+      leftMotor = abs(isForward) + abs(isTurn);
+      rightMotor = abs(isForward);     
+    }
+    else if(isForward > 0 && isTurn < 0){
+      //for left turnish
+      leftMotor = abs(isForward);
+      rightMotor = abs(isForward) + abs(isTurn);
+    }
+
+    leftMotor = constrain(leftMotor, -100, 100);
+    rightMotor = constrain(rightMotor, -100, 100);    
+    leftMotor = map(leftMotor, -100, 100, 60, 130);
+    rightMotor = map(rightMotor, -100, 100, 60, 130);
+    leftServo.write(leftMotor);
+    rightServo.write(rightMotor);
+
+  }  
 }
 
 #pragma endregion ButlerBot
 
-//Below is where you want to stay to make Soccer Bots
+//Below is where you want to stay to make Soccer Bots DO NOT TOUCH FOR THIS BUTLER BOT
+//Better yet, just delete this section below. Delete the prototype functions for the void funcs below in the header file too
 #pragma region SoccerBot
 
 void initL298N(){
